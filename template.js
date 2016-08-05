@@ -1,7 +1,18 @@
-AutoForm.addInputType('medium', {
+// Markdown render
+marked.setOptions({
+  breaks: true
+});
+
+
+AutoForm.addInputType('medium-markdown', {
     template: 'afMedium',
+    // template: 'afMedium_materialize',
+    valueIn: function (val, atts) {
+      return marked(val || ' ');
+    },
     valueOut: function() {
-        return this[0].innerHTML;
+        // return this[0].innerHTML;
+        return this.data('markdown');
     },
     contextAdjust: function(context) {
         return context;
@@ -12,32 +23,23 @@ function initializeMediumEditor(options){
     var input = this.find('div');
     var opts = _.defaults((this.data.atts.mediumOptions || {}), options, {
         staticToolbar: true,
-        stickyToolbar: true
+        stickyToolbar: true,
+        extensions: {
+          markdown: new MeMarkdown(function (md) {
+              $(input).attr('data-markdown', md);
+          })
+        }
     });
 
     var editor = new MediumEditor(input, opts);
 
-    // TODO: restore when medium editor fixe deactivate
-    /*
-    Meteor.setTimeout((function(_this) {
-      return function() {
-        return Tracker.autorun(function() {
-          var language, mediumOptions;
-          editor.deactivate();
-          if (Package['tap:i18n']) {
-            language = TAPi18n.getLanguage();
-          }
-          mediumOptions = _this.data.atts.mediumOptions;
-          opts = _.defaults(mediumOptions, {
-            staticToolbar: true,
-            stickyToolbar: true
-          });
-          _.extend(editor.options, mediumOptions);
-          return editor.activate();
-        }, 1000);
-      };
-    })(this));
-    */
+    var template = this;
+
+    // Notify changes to MediumEditor if data changes
+    template.autorun(function () {
+      var data = Template.currentData();
+      editor.checkContentChanged(template.find('div'));
+    });
 }
 
 var helpers = {
@@ -51,11 +53,16 @@ var helpers = {
     }
 };
 
-Template.afMedium.rendered = function() {
-    initializeMediumEditor.call(this);
-};
+Template.afMedium.onRendered(function() {
+  // Add the correct placeholder
+  var ops = {};
+  if(this.data.atts.placeholder) {
+    ops.placeholder = {text: this.data.atts.placeholder};
+  }
+  initializeMediumEditor.call(this, ops);
+});
 
-Template.afMedium_materialize.rendered = function() {
+Template.afMedium_materialize.onRendered(function() {
     if(!this.data.atts.mediumOptions || (this.data.atts.mediumOptions && !this.data.atts.mediumOptions.keepLabel)){
         $('label[for=' + this.data.atts.id + ']:not([data-medium-label])').remove();
 
@@ -67,7 +74,8 @@ Template.afMedium_materialize.rendered = function() {
     }
 
     initializeMediumEditor.call(this);
-};
+});
 
 Template.afMedium.helpers(helpers);
 Template.afMedium_materialize.helpers(helpers);
+
